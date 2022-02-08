@@ -36,6 +36,7 @@ var resolve_config = resolve({
 const inputs = [
 	'tom-select.ts',
 	'tom-select.complete.ts',
+	'tom-select.plexus.ts',
 	'tom-select.popular.ts',
 	'utils.ts',
 ];
@@ -191,6 +192,9 @@ configCore('src/tom-select.complete.ts','tom-select.complete.min.js',[terser_con
 configCore('src/tom-select.popular.ts','tom-select.popular.js');
 configCore('src/tom-select.popular.ts','tom-select.popular.min.js',[terser_config]);
 
+// tom-select.plexus
+configCore('src/tom-select.plexus.ts','tom-select.plexus.js');
+configCore('src/tom-select.plexus.ts','tom-select.plexus.min.js',[terser_config]);
 
 
 export default configs;
