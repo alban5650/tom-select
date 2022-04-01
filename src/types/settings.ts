@@ -12,7 +12,7 @@ import * as SifterTypes from '@orchidjs/sifter/lib/types';
 export type TomSettings = {
 	options					?: any[],
 	optgroups				?: any[],
-	items					: any[],
+	items					?: string[],
 
 	plugins					: string[]|TPluginItem[]|TPluginHash,
 	delimiter				: string,
@@ -96,4 +96,5 @@ export type TomSettings = {
 
 	// virtual scroll plugin
 	firstUrl				: (query:string)=>any
+	shouldLoadMore			: () => boolean,
 };
