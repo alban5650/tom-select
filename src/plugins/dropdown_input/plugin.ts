@@ -20,7 +20,7 @@ import { addEvent, preventDefault } from '../../utils';
 
 
 export default function(this:TomSelect) {
-	var self = this;
+	const self = this;
 
 	self.settings.shouldOpen = true; // make sure the input is shown even if there are no options to display in the dropdown
 
@@ -32,6 +32,12 @@ export default function(this:TomSelect) {
 	 	const div = getDom('<div class="dropdown-input-wrap">');
 		div.append(self.control_input);
 		self.dropdown.insertBefore(div, self.dropdown.firstChild);
+
+		// set a placeholder in the select control
+		const placeholder = getDom('<input class="items-placeholder" tabindex="-1" />') as HTMLInputElement;
+		placeholder.placeholder = self.settings.placeholder;
+		self.control.append(placeholder);
+
 	});
 
 
