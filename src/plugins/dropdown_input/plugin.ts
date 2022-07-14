@@ -35,7 +35,7 @@ export default function(this:TomSelect) {
 
 		// set a placeholder in the select control
 		const placeholder = getDom('<input class="items-placeholder" tabindex="-1" />') as HTMLInputElement;
-		placeholder.placeholder = self.settings.placeholder;
+		placeholder.placeholder = self.settings.placeholder ||'';
 		self.control.append(placeholder);
 
 	});
@@ -84,7 +84,7 @@ export default function(this:TomSelect) {
 		self.hook('before','close',() =>{
 
 			if( !self.isOpen ) return;
-			self.focus_node.focus();
+			self.focus_node.focus({preventScroll: true});
 		});
 
 	});

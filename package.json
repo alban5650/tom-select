@@ -16,7 +16,7 @@
   "types": "dist/types/tom-select.complete.d.ts",
   "description": "Tom Select is a versatile and dynamic <select> UI control. Forked from Selectize.js to provide a framework agnostic autocomplete widget with native-feeling keyboard navigation, it's useful for tagging, contact lists, country selectors, etc.",
   "homepage": "https://tom-select.js.org",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "files": [
     "/dist",
     "/src"
@@ -62,10 +62,10 @@
     "grunt-replace": "^2.0.0",
     "grunt-sass": "^3.1.0",
     "grunt-shell": "^4.0.0",
-    "husky": "^7.0.0",
+    "husky": "^8.0.1",
     "icon-blender": "^1.0.0-beta.4",
     "jquery": "^3.6.0",
-    "jsdom": "^19.0.0",
+    "jsdom": "^20.0.0",
     "karma": "^6.3.17",
     "karma-accessibility-checker": "^3.1.5",
     "karma-browserstack-launcher": "^1.6.0",
@@ -117,6 +117,6 @@
     "url": "https://opencollective.com/tom-select"
   },
   "dependencies": {
-    "@orchidjs/sifter": "^0.9.1"
+    "@orchidjs/sifter": "^0.9.2"
   }
 }

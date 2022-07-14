@@ -3,7 +3,7 @@ import MicroEvent from './contrib/microevent';
 import MicroPlugin from './contrib/microplugin';
 import Sifter from '@orchidjs/sifter/lib/sifter';
 import { escape_regex, iterate } from '@orchidjs/sifter/lib/utils';
-import { TomInput, TomArgObject, TomOption, TomOptions, TomCreateFilter, TomCreateCallback, TomItem, TomSettings, TomTemplateNames } from './types/index';
+import { TomInput, TomArgObject, TomOption, TomOptions, TomCreateFilter, TomCreateCallback, TomItem, TomSettings, TomTemplateNames, TomClearFilter } from './types/index';
 import {highlight, removeHighlight} from './contrib/highlight';
 import * as constants from './constants';
 import getSettings from './getSettings';
@@ -71,6 +71,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	public isInputHidden			: boolean = false;
 	public isSetup					: boolean = false;
 	public ignoreFocus				: boolean = false;
+	public ignoreHover				: boolean = false;
 	public hasOptions				: boolean = false;
 	public currentResults			?: ReturnType<Sifter['search']>;
 	public lastValue				: string = '';
@@ -143,7 +144,9 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 			if( filter instanceof RegExp ){
 				settings.createFilter = (input) => (filter as RegExp).test(input);
 			}else{
-				settings.createFilter = () => true;
+				settings.createFilter = (value) => {
+					return this.settings.duplicates || !this.options[value];
+				};
 			}
 		}
 
@@ -272,13 +275,13 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 			setAttr(input,{multiple:'multiple'});
 		}
 
-		if (self.settings.placeholder) {
+		if (settings.placeholder) {
 			setAttr(control_input,{placeholder:settings.placeholder});
 		}
 
 		// if splitOn was not passed in, construct it from the delimiter to allow pasting universally
-		if (!self.settings.splitOn && self.settings.delimiter) {
-			self.settings.splitOn = new RegExp('\\s*' + escape_regex(self.settings.delimiter) + '+\\s*');
+		if (!settings.splitOn && settings.delimiter) {
+			settings.splitOn = new RegExp('\\s*' + escape_regex(settings.delimiter) + '+\\s*');
 		}
 
 		// debounce user defined load() if loadThrottle > 0
@@ -289,6 +292,12 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 
 		self.control_input.type	= input.type;
 
+		addEvent(dropdown,'mouseenter', (e) => {
+
+			var target_match = parentMatch(e.target as HTMLElement, '[data-selectable]', dropdown);
+			if( target_match ) self.onOptionHover( e as MouseEvent, target_match );
+
+		}, {capture:true});
 
 		// clicking on an option should select it
 		addEvent(dropdown,'click',(evt) => {
@@ -327,7 +336,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 		addEvent(focus_node,'resize',		() => self.positionDropdown(), passive_event);
 		addEvent(focus_node,'blur', 		(e) => self.onBlur(e as FocusEvent) );
 		addEvent(focus_node,'focus',		(e) => self.onFocus(e as MouseEvent) );
-		addEvent(focus_node,'paste',		(e) => self.onPaste(e as MouseEvent) );
+		addEvent(control_input,'paste',		(e) => self.onPaste(e as MouseEvent) );
 
 
 		const doc_mousedown = (evt:Event) => {
@@ -358,20 +367,25 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 
 		};
 
-		var win_scroll = () => {
+		const win_scroll = () => {
 			if (self.isOpen) {
 				self.positionDropdown();
 			}
 		};
 
+		const win_hover = () => {
+			self.ignoreHover = false;
+		};
 
 		addEvent(document,'mousedown', doc_mousedown);
 		addEvent(window,'scroll', win_scroll, passive_event);
 		addEvent(window,'resize', win_scroll, passive_event);
+		addEvent(window,'mousemove', win_hover, passive_event);
 
 		this._destroy = () => {
 			document.removeEventListener('mousedown',doc_mousedown);
-			window.removeEventListener('sroll',win_scroll);
+			window.removeEventListener('mousemove',win_hover);
+			window.removeEventListener('scroll',win_scroll);
 			window.removeEventListener('resize',win_scroll);
 			if( label ) label.removeEventListener('click',label_click);
 		};
@@ -586,21 +600,29 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 
 		// If a regex or string is included, this will split the pasted
 		// input and create Items for each separate value
-		if (self.settings.splitOn) {
-
-			// Wait for pasted text to be recognized in value
-			setTimeout(() => {
-				var pastedText = self.inputValue();
-				if( !pastedText.match(self.settings.splitOn)){
-					return
-				}
-
-				var splitInput = pastedText.trim().split(self.settings.splitOn);
-				iterate( splitInput, (piece) => {
-					self.createItem(piece);
-				});
-			}, 0);
+		if( !self.settings.splitOn ){
+			return;
 		}
+
+		// Wait for pasted text to be recognized in value
+		setTimeout(() => {
+			var pastedText = self.inputValue();
+			if( !pastedText.match(self.settings.splitOn)){
+				return
+			}
+
+			var splitInput = pastedText.trim().split(self.settings.splitOn);
+			iterate( splitInput, (piece) => {
+
+				piece = hash_key(piece);
+				if( this.options[piece] ){
+					self.addItem(piece);
+				}else{
+					self.createItem(piece);
+				}
+			});
+		}, 0);
+
 	}
 
 	/**
@@ -627,6 +649,8 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	 */
 	onKeyDown(e:KeyboardEvent):void {
 		var self = this;
+
+		self.ignoreHover = true;
 
 		if (self.isLocked) {
 			if (e.keyCode !== constants.KEY_TAB) {
@@ -686,7 +710,12 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 				// if the option_create=null, the dropdown might be closed
 				}else if (self.settings.create && self.createItem()) {
 					preventDefault(e);
+
+				// don't submit form when searching for a value
+				}else if( document.activeElement == self.control_input && self.isOpen ){
+					preventDefault(e);
 				}
+
 				return;
 
 			// left: modifiy item selection to the left
@@ -753,6 +782,15 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 		}
 	}
 
+	/**
+	 * Triggered when the user rolls over
+	 * an option in the autocomplete dropdown menu.
+	 *
+	 */
+	onOptionHover( evt:MouseEvent|KeyboardEvent, option:HTMLElement ):void{
+		if( this.ignoreHover ) return;
+		this.setActiveOption(option, false);
+	}
 
 	/**
 	 * Triggered on <input> focus.
@@ -1097,7 +1135,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	 * of available options.
 	 *
 	 */
-	setActiveOption( option:null|HTMLElement ):void{
+	setActiveOption( option:null|HTMLElement,scroll:boolean=true ):void{
 
 		if( option === this.activeOption ){
 			return;
@@ -1110,7 +1148,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 		setAttr(this.focus_node,{'aria-activedescendant':option.getAttribute('id')});
 		setAttr(option,{'aria-selected':'true'});
 		addClasses(option,'active');
-		this.scrollToOption(option);
+		if( scroll ) this.scrollToOption(option);
 	}
 
 	/**
@@ -1733,14 +1771,17 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	/**
 	 * Clears all options.
 	 */
-	clearOptions() {
+	clearOptions(filter?:TomClearFilter ) {
+
+		const boundFilter = (filter || this.clearFilter).bind(this);
 
 		this.loadedSearches		= {};
 		this.userOptions		= {};
 		this.clearCache();
-		var selected:TomOptions	= {};
+
+		const selected:TomOptions	= {};
 		iterate(this.options,(option,key)=>{
-    		if( this.items.indexOf(key as string) >= 0 ){
+			if( boundFilter(option,key as string) ){
 				selected[key] = this.options[key];
 			}
 		});
@@ -1750,6 +1791,17 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 		this.trigger('option_clear');
 	}
 
+	/**
+	 * Used by clearOptions() to decide whether or not an option should be removed
+	 * Return true to keep an option, false to remove
+	 *
+	 */
+	clearFilter(option:TomOption,value:string){
+		if( this.items.indexOf(value) >= 0 ){
+			return true;
+		}
+		return false;
+	}
 
 	/**
 	 * Returns the dom element of the option
@@ -2070,11 +2122,11 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	refreshValidityState() {
 		var self = this;
 
-		if( !self.input.checkValidity ){
+		if( !self.input.validity ){
 			return;
 		}
 
-		self.isValid = self.input.checkValidity();
+		self.isValid = self.input.validity.valid;
 		self.isInvalid = !self.isValid;
 	}
 
@@ -2306,10 +2358,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 			}
 		}
 
-		const values = rm_items.map(item => item.dataset.value);
-
-		// allow the callback to abort
-		if (!values.length || (typeof self.settings.onDelete === 'function' && self.settings.onDelete.call(self,values,e) === false)) {
+		if( !self.shouldDelete(rm_items,e) ){
 			return false;
 		}
 
@@ -2327,6 +2376,21 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 		self.showInput();
 		self.positionDropdown();
 		self.refreshOptions(false);
+
+		return true;
+	}
+
+	/**
+	 * Return true if the items should be deleted
+	 */
+	shouldDelete(items:TomItem[],evt:MouseEvent|KeyboardEvent){
+
+		const values = items.map(item => item.dataset.value);
+
+		// allow the callback to abort
+		if( !values.length || (typeof this.settings.onDelete === 'function' && this.settings.onDelete(values,evt) === false) ){
+			return false;
+		}
 
 		return true;
 	}
