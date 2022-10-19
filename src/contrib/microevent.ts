@@ -30,8 +30,9 @@ export default class MicroEvent{
 
 	on(events:string, fct:TCallback){
 		forEvents(events,(event) => {
-			this._events[event] = this._events[event] || [];
-			this._events[event].push(fct);
+			const event_array = this._events[event] || [];
+			event_array.push(fct);
+			this._events[event] = event_array;
 		});
 	}
 
@@ -44,10 +45,16 @@ export default class MicroEvent{
 
 		forEvents(events,(event) => {
 
-			if (n === 1) return delete this._events[event];
+			if (n === 1){
+				delete this._events[event];
+				return
+			}
 
-			if (event in this._events === false) return;
-			this._events[event].splice(this._events[event].indexOf(fct), 1);
+			const event_array = this._events[event];
+			if( event_array === undefined ) return;
+
+			event_array.splice(event_array.indexOf(fct), 1);
+			this._events[event] = event_array;
 		});
 	}
 
@@ -55,10 +62,12 @@ export default class MicroEvent{
 		var self = this;
 
 		forEvents(events,(event) => {
-			if(event in self._events === false) return;
-			for( let fct of self._events[event] ){
+			const event_array = self._events[event];
+			if( event_array === undefined ) return;
+			event_array.forEach(fct => {
 				fct.apply(self, args );
-			}
+			});
+
 		});
 	}
 };

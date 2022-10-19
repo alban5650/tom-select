@@ -118,7 +118,14 @@ module.exports = function(config) {
 		reporters = ['mocha', 'coverage', 'coveralls','aChecker']
 	}
 
-	var browsers = targets[process.env.TARGET || 'HeadlessFirefox'];
+	var target = process.env.TARGET;
+	if( !target ){
+		target = 'HeadlessChrome';
+		process.env.CHROME_BIN = require('puppeteer').executablePath();
+	}
+
+
+	var browsers = targets[target];
 	if( process.env.BROWSERS ){
 		browsers = process.env.BROWSERS.split(',');
 	}
@@ -172,6 +179,7 @@ module.exports = function(config) {
 		singleRun: true,
 		browserDisconnectTolerance: 3,
 		browserDisconnectTimeout: 15000,
-		browserNoActivityTimeout: 120000
+		browserNoActivityTimeout: 120000,
+		concurrency: 3,
 	});
 };
