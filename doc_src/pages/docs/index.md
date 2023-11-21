@@ -379,6 +379,12 @@ Weights can be given to each field to improve search results
 searchField: [{field:'text',weight:2},{field:'text2',weight:0.5}]
 ```
 
+To completely disable the client side filtering (if youre getting the search results from an external source), set the `searchField` to an empty array.
+
+```js
+searchField: []
+```
+
 </td>
 		<td><code>array</code></td>
 		<td><code>['text']</code></td>
@@ -460,7 +466,7 @@ new TomSelect('#select',{
 		<td>Invoked when an item is selected.</td>
 	</tr>
 	<tr>
-		<td><code>onItemRemove(value)</code></td>
+		<td><code>onItemRemove(value, $item)</code></td>
 		<td>Invoked when an item is deselected.</td>
 	</tr>
 	<tr>

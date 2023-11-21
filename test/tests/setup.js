@@ -113,32 +113,21 @@
 		});
 
 
-		describe('<input type="number">', function() {
-			it_n('should complete without exceptions', function(done) {
-				var test = setup_test('<input type="number">', {});
-
-				assert.equal(test.instance.control_input.getAttribute('type'), 'number');
-				done();
-
-			});
-		});
-
-
 		describe('<select>', function() {
 			it_n('should complete without exceptions', function() {
 				var test = setup_test('<select></select>', {});
 			});
 			it_n('should allow for values optgroups with duplicated options', function() {
-				var test = setup_test(['<select>',
-					'<optgroup data-val="Group 1" label="Group 1">',
-					'<option value="a">Item A</option>',
-					'<option value="b">Item B</option>',
-					'</optgroup>',
-					'<optgroup data-val="Group 2" label="Group 2">',
-					'<option value="a">Item A</option>',
-					'<option value="b">Item B</option>',
-					'</optgroup>',
-					'</select>'].join(''), {
+				var test = setup_test(`<select>
+					<optgroup data-val="Group 1" label="Group 1">
+					<option value="a">Item A</option>
+					<option value="b">Item B</option>
+					</optgroup>
+					<optgroup data-val="Group 2" label="Group 2">
+					<option value="a">Item A</option>
+					<option value="b">Item B</option>
+					</optgroup>
+					</select>`, {
 					optgroupValueField: 'val',
 					optgroupField: 'grp',
 					disabledField: 'dis'
@@ -147,32 +136,32 @@
 				assert.equal( test.instance.options['a'].text,'Item A');
 				assert.equal( test.instance.options['a'].value,'a');
 				assert.deepEqual( test.instance.options['a'].grp,['Group 1', 'Group 2']);
-				assert.equal( test.instance.options['a'].$order,1);
+				assert.equal( test.instance.options['a'].$order,2);
 				assert.equal( test.instance.options['a'].dis,false);
 
 				assert.equal( test.instance.options['b'].text,'Item B');
 				assert.equal( test.instance.options['b'].value,'b');
 				assert.deepEqual( test.instance.options['b'].grp,['Group 1', 'Group 2']);
-				assert.equal( test.instance.options['b'].$order,2);
+				assert.equal( test.instance.options['b'].$order,3);
 				assert.equal( test.instance.options['b'].dis,false);
 
 
 				assert.deepEqual(test.instance.optgroups, {
-					'Group 1': {label: 'Group 1', val: 'Group 1', $order: 3, dis: false},
+					'Group 1': {label: 'Group 1', val: 'Group 1', $order: 1, dis: false},
 					'Group 2': {label: 'Group 2', val: 'Group 2', $order: 4, dis: false}
 				}, '2');
 			});
 			it_n('should respect disabled flags of option and optgroup', function() {
-				var test = setup_test(['<select>',
-					'<optgroup data-val="Group 1" label="Group 1">',
-					'<option value="a" disabled>Item A</option>',
-					'<option value="b">Item B</option>',
-					'</optgroup>',
-					'<optgroup data-val="Group 2" label="Group 2" disabled>',
-					'<option value="a">Item A</option>',
-					'<option value="b">Item B</option>',
-					'</optgroup>',
-					'</select>'].join(''), {
+				var test = setup_test(`<select>
+					<optgroup data-val="Group 1" label="Group 1">
+					<option value="a" disabled>Item A</option>
+					<option value="b">Item B</option>
+					</optgroup>
+					<optgroup data-val="Group 2" label="Group 2" disabled>
+					<option value="a">Item A</option>
+					<option value="b">Item B</option>
+					</optgroup>
+					</select>`, {
 					optgroupValueField: 'val',
 					optgroupField: 'grp',
 					disabledField: 'dis'
@@ -181,17 +170,17 @@
 				assert.equal( test.instance.options['a'].text,'Item A');
 				assert.equal( test.instance.options['a'].value,'a');
 				assert.deepEqual( test.instance.options['a'].grp,['Group 1', 'Group 2']);
-				assert.equal( test.instance.options['a'].$order,1);
+				assert.equal( test.instance.options['a'].$order,2);
 				assert.equal( test.instance.options['a'].dis,true);
 
 				assert.equal( test.instance.options['b'].text,'Item B');
 				assert.equal( test.instance.options['b'].value,'b');
 				assert.deepEqual( test.instance.options['b'].grp,['Group 1', 'Group 2']);
-				assert.equal( test.instance.options['b'].$order,2);
+				assert.equal( test.instance.options['b'].$order,3);
 				assert.equal( test.instance.options['b'].dis,false);
 
 				assert.deepEqual(test.instance.optgroups, {
-					'Group 1': {label: 'Group 1', val: 'Group 1', $order: 3, dis: false},
+					'Group 1': {label: 'Group 1', val: 'Group 1', $order: 1, dis: false},
 					'Group 2': {label: 'Group 2', val: 'Group 2', $order: 4, dis: true}
 				}, '2');
 			});
@@ -215,19 +204,25 @@
 
 			it_n('display non-optgroup items and optgroups with lockOptgroupOrder = true', function(done) {
 				var test = setup_test(`<select>
-					<option>Item</option>
-					<optgroup label="Group 1">
-					<option value="a">Item A</option>
-					<option value="b">Item B</option>
-					</optgroup>
-					<optgroup label="Group 2">
-					<option value="a">Item A</option>
-					<option value="b">Item B</option>
-					</optgroup>
-					</select>`,{lockOptgroupOrder:true});
+						<option value="first">First</option>
+						<optgroup label="Group 1">
+							<option value="a">Item A</option>
+							<option value="b">Item B</option>
+						</optgroup>
+						<optgroup label="Group 2">
+							<option value="a">Item A</option>
+							<option value="b">Item B</option>
+						</optgroup>
+						<option value="last">Last</option>
+					</select>`,{
+						lockOptgroupOrder:true
+					});
 				test.instance.refreshOptions(true);
 				assert.equal(test.instance.dropdown_content.querySelectorAll('.optgroup').length, 2, 'expect 2 optgroups');
-				assert.equal(test.instance.dropdown_content.querySelectorAll('.option').length, 5, 'expect 5 options');
+				assert.equal(test.instance.dropdown_content.querySelectorAll('.option').length, 6, 'expect 6 options');
+				assert.equal( test.instance.dropdown_content.querySelector('.option[data-value=last]').nextElementSibling, null,'should preserve order of options outside of optgroups');
+				assert.equal( test.instance.dropdown_content.querySelector('.option[data-value=first]').previousElementSibling, null,'should preserve order of options outside of optgroups');
+
 				done();
 			});
 
@@ -331,8 +326,8 @@
 
 				test.instance.refreshOptions(true);
 
-				$(test.instance.dropdown).find('[data-value]').each(function(i, el) {
-					order_actual.push($(el).attr('data-value'));
+				test.instance.dropdown.querySelectorAll('[data-value]').forEach(function(el) {
+					order_actual.push( el.dataset.value );
 				});
 
 				expect(order_actual).to.eql(order_expected);
@@ -347,8 +342,8 @@
 
 				test.instance.refreshOptions(true);
 
-				expect($(test.instance.dropdown).find('.option')).to.has.length(2);
-				expect($(test.instance.dropdown).find('[data-selectable]')).to.has.length(1);
+				expect( test.instance.dropdown.querySelectorAll('.option') ).to.has.length(2);
+				expect( test.instance.dropdown.querySelectorAll('[data-selectable]') ).to.has.length(1);
 				done();
 
 			});
@@ -394,6 +389,17 @@
 			});
 		});
 
+
+		describe('<input readonly>', function() {
+			it_n('should be readonly', function() {
+
+				const test = setup_test('<input readonly>', {});
+
+				assert.equal( test.instance.isReadOnly,true);
+				assert.equal( test.instance.wrapper.classList.contains('readonly'),true,`readonly class not found ${test.instance.wrapper.className}`);
+
+			});
+		});
 
 		describe('<select> (custom string render)', function() {
 
@@ -449,13 +455,13 @@
 				test.instance.focus();
 
 				window.setTimeout(function() {
-					expect($(test.instance.dropdown_content).find('.custom-option').length).to.be.equal(1);
+					expect( test.instance.dropdown_content.querySelectorAll('.custom-option').length ).to.be.equal(1);
 					done();
 				}, 5);
 			});
 		});
 
-		describe('<select> (custom jquery render)', function() {
+		describe('<select> (custom render)', function() {
 			var test;
 
 			beforeEach(function() {
@@ -465,7 +471,11 @@
 				'</select>', {
 					render: {
 						option: function(item, escape) {
-							return $('<div class="option custom-option">').text(item.text);
+
+							let div = document.createElement('div');
+							div.className = 'option custom-option';
+							div.innerText = item.text;
+							return div
 						}
 					}
 				});
@@ -475,7 +485,7 @@
 				test.instance.focus();
 
 				window.setTimeout(function() {
-					expect($(test.instance.dropdown_content).find('.custom-option').length).to.be.equal(1);
+					expect( test.instance.dropdown_content.querySelectorAll('.custom-option').length).to.be.equal(1);
 					done();
 				}, 5);
 			});
@@ -520,7 +530,7 @@
 			});
 
 			it_n('should not hide external control', function() {
-				test.instance.hideInput();
+				test.instance.inputState();
 				assert.equal(test.instance.isInputHidden, false);
 			});
 

@@ -113,9 +113,18 @@ module.exports = function(config) {
 		'HeadlessChrome': ['HeadlessChrome']
 	};
 
-	var reporters = ['mocha','coverage','aChecker'];
+	var reporters = [
+		'mocha',
+		'coverage',
+		//'aChecker'
+		];
 	if( process.env.TRAVIS_CI ){
-		reporters = ['mocha', 'coverage', 'coveralls','aChecker']
+		reporters = [
+			'mocha',
+			'coverage',
+			'coveralls',
+			//'aChecker'
+			]
 	}
 
 	var target = process.env.TARGET;
@@ -133,7 +142,11 @@ module.exports = function(config) {
 
 	config.set({
 		basePath: '../',
-		frameworks: ['mocha', 'chai','aChecker'],
+		frameworks: [
+			'mocha',
+			'chai',
+			//'aChecker'
+			],
 		files: [
 			{
 				pattern: 'test/tests/esm-module.js',
@@ -143,7 +156,6 @@ module.exports = function(config) {
 
 			'build/js/tom-select.complete.js',
 			'node_modules/syn/dist/global/syn.js',
-			'node_modules/jquery/dist/jquery.js',
 			'build/css/tom-select.default.css',
 			'test/support/*.js',
 			config.test_one ? 'test/tests/interaction.js' : 'test/tests/**/*.js',

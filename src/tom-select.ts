@@ -16,6 +16,7 @@ import {
 	preventDefault,
 	addEvent,
 	loadDebounce,
+	timeout,
 	isKeyDown,
 	getId,
 	addSlashes,
@@ -63,6 +64,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 
 	public isOpen					: boolean = false;
 	public isDisabled				: boolean = false;
+	public isReadOnly				: boolean = false;
 	public isRequired				: boolean;
 	public isInvalid				: boolean = false; // @deprecated 1.8
 	public isValid					: boolean = true;
@@ -87,6 +89,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	public userOptions				: {[key:string]:boolean} = {};
 	public items					: string[] = [];
 
+	private refreshTimeout			: null|ReturnType<typeof setTimeout> = null;
 
 
 	constructor( input_arg: string|TomInput, user_settings:RecursivePartial<TomSettings> ){
@@ -192,7 +195,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 			control_input		= getDom(settings.controlInput ) as HTMLInputElement;
 
 			// set attributes
-			var attrs = ['autocorrect','autocapitalize','autocomplete'];
+			var attrs = ['autocorrect','autocapitalize','autocomplete','spellcheck'];
 			iterate(attrs,(attr:string) => {
 				if( input.getAttribute(attr) ){
 					setAttr(control_input,{[attr]:input.getAttribute(attr)});
@@ -289,8 +292,6 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 		if( settings.load && settings.loadThrottle ){
 			settings.load = loadDebounce(settings.load,settings.loadThrottle)
 		}
-
-		self.control_input.type	= input.type;
 
 		addEvent(dropdown,'mousemove', () => {
 			self.ignoreHover = false;
@@ -419,6 +420,8 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 
 		if( input.disabled ){
 			self.disable();
+		}else if( input.readOnly ){
+			self.setReadOnly(true);
 		}else{
 			self.enable(); //sets tabIndex
 		}
@@ -762,23 +765,39 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	 *
 	 */
 	onInput(e:MouseEvent|KeyboardEvent):void {
-		var self = this;
-
-		if( self.isLocked ){
+		
+		if( this.isLocked ){
 			return;
 		}
 
-		var value = self.inputValue();
-		if (self.lastValue !== value) {
-			self.lastValue = value;
-
-			if( self.settings.shouldLoad.call(self,value) ){
-				self.load(value);
-			}
-
-			self.refreshOptions();
-			self.trigger('type', value);
+		const value = this.inputValue();
+		if( this.lastValue === value ) return;
+		this.lastValue = value;
+		
+		if( value == '' ){
+			this._onInput();
+			return;
 		}
+
+		if( this.refreshTimeout ){
+			clearTimeout(this.refreshTimeout);
+		}
+
+		this.refreshTimeout = timeout(()=> {
+			this.refreshTimeout = null;
+			this._onInput();
+		}, this.settings.refreshThrottle);
+	}
+
+	_onInput():void {
+		const value = this.lastValue;
+
+		if( this.settings.shouldLoad.call(this,value) ){
+			this.load(value);
+		}
+
+		this.refreshOptions();
+		this.trigger('type', value);
 	}
 
 	/**
@@ -799,7 +818,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 		var self = this;
 		var wasFocused = self.isFocused;
 
-		if (self.isDisabled) {
+		if( self.isDisabled || self.isReadOnly ){
 			self.blur();
 			preventDefault(e);
 			return;
@@ -812,7 +831,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 		if (!wasFocused) self.trigger('focus');
 
 		if (!self.activeItems.length) {
-			self.showInput();
+			self.inputState();
 			self.refreshOptions(!!self.settings.openOnFocus);
 		}
 
@@ -1051,7 +1070,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 		if( !item ){
 			self.clearActiveItems();
 			if (self.isFocused) {
-				self.showInput();
+				self.inputState();
 			}
 			return;
 		}
@@ -1088,7 +1107,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 		}
 
 		// ensure control has focus
-		self.hideInput();
+		self.inputState();
 		if (!self.isFocused) {
 			self.focus();
 		}
@@ -1211,7 +1230,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 
 		if( !activeItems.length ) return;
 
-		self.hideInput();
+		self.inputState();
 		self.close();
 
 		self.activeItems = activeItems;
@@ -1248,23 +1267,6 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	}
 
 	/**
-	 * Hides the input element out of view, while
-	 * retaining its focus.
-	 * @deprecated 1.3
-	 */
-	hideInput() {
-		this.inputState();
-	}
-
-	/**
-	 * Restores input visibility.
-	 * @deprecated 1.3
-	 */
-	showInput() {
-		this.inputState();
-	}
-
-	/**
 	 * Get the input value
 	 */
 	inputValue(){
@@ -1276,7 +1278,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	 */
 	focus() {
 		var self = this;
-		if (self.isDisabled) return;
+		if( self.isDisabled || self.isReadOnly) return;
 
 		self.ignoreFocus = true;
 
@@ -1380,14 +1382,16 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	refreshOptions( triggerDropdown:boolean = true ){
 		var i, j, k, n, optgroup, optgroups, html:DocumentFragment, has_create_option, active_group;
 		var create;
-		const groups: {[key:string]:DocumentFragment} = {};
 
-		const groups_order:string[]	= [];
+		type Group = {fragment:DocumentFragment,order:number,optgroup:string}
+		const groups: {[key:string]:number} = {};
+		const groups_order:Group[]	= [];
+
 		var self					= this;
 		var query					= self.inputValue();
 		const same_query			= query === self.lastQuery || (query == '' && self.lastQuery == null);
 		var results					= self.search(query);
-		var active_option			= null;
+		var active_option:HTMLElement|null = null;
 		var show_dropdown			= self.settings.shouldOpen || false;
 		var dropdown_content		= self.dropdown_content;
 
@@ -1408,6 +1412,25 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 
 		if( n > 0 ){
 			show_dropdown = true;
+		}
+
+		// get fragment for group and the position of the group in group_order
+		const getGroupFragment = (optgroup:string,order:number):[number,DocumentFragment] => {
+
+			let group_order_i = groups[optgroup];
+
+			if( group_order_i !== undefined ){
+				let order_group = groups_order[group_order_i];
+				if( order_group !== undefined ){
+					return [group_order_i,order_group.fragment];
+				}
+			}
+
+			let group_fragment = document.createDocumentFragment();
+			group_order_i = groups_order.length;
+			groups_order.push({fragment:group_fragment,order,optgroup});
+
+			return [group_order_i,group_fragment]
 		}
 
 		// render and group available options individually
@@ -1432,18 +1455,21 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 
 			optgroup    = option[self.settings.optgroupField] || '';
 			optgroups   = Array.isArray(optgroup) ? optgroup : [optgroup];
+			
 
 			for (j = 0, k = optgroups && optgroups.length; j < k; j++) {
 				optgroup = optgroups[j];
-				if (!self.optgroups.hasOwnProperty(optgroup)) {
+
+				let order = option.$order;
+				let self_optgroup = self.optgroups[optgroup];
+				if( self_optgroup === undefined ){					
 					optgroup = '';
+				}else{
+					order = self_optgroup.$order;
 				}
 
-				let group_fragment = groups[optgroup];
-				if( group_fragment === undefined ){
-					group_fragment = document.createDocumentFragment();
-					groups_order.push(optgroup);
-				}
+				const [group_order_i,group_fragment] = getGroupFragment(optgroup,order);
+
 
 				// nodes can only have one parent, so if the option is in mutple groups, we need a clone
 				if( j > 0 ){
@@ -1459,29 +1485,28 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 							active_option = option_el;
 						}
 					}
-				}
-
+				}	
+				
 				group_fragment.appendChild(option_el);
-				groups[optgroup] = group_fragment;
+				if( optgroup != '' ){
+					groups[optgroup] = group_order_i;
+				}
 			}
 		}
 
 		// sort optgroups
 		if( self.settings.lockOptgroupOrder ){
 			groups_order.sort((a, b) => {
-				const grp_a		= self.optgroups[a];
-				const grp_b		= self.optgroups[b];
-				const a_order	= grp_a && grp_a.$order || 0;
-				const b_order	= grp_b && grp_b.$order || 0;
-				return a_order - b_order;
+				return a.order - b.order;
 			});
 		}
 
 		// render optgroup headers & join groups
 		html = document.createDocumentFragment();
-		iterate( groups_order, (optgroup:string) => {
+		iterate( groups_order, (group_order:Group) => {
 
-			let group_fragment = groups[optgroup];
+			let group_fragment = group_order.fragment;
+			let optgroup = group_order.optgroup
 
 			if( !group_fragment || !group_fragment.children.length ) return;
 
@@ -2131,6 +2156,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 
 		wrap_classList.toggle('focus', self.isFocused)
 		wrap_classList.toggle('disabled', self.isDisabled)
+		wrap_classList.toggle('readonly', self.isReadOnly)
 		wrap_classList.toggle('required', self.isRequired)
 		wrap_classList.toggle('invalid', !self.isValid)
 		wrap_classList.toggle('locked', isLocked)
@@ -2281,7 +2307,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 			self.setTextboxValue();
 
 			if (self.settings.mode === 'single' && self.items.length) {
-				self.hideInput();
+				self.inputState();
 			}
 		}
 
@@ -2336,7 +2362,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 			self.removeItem(item,true);
 		});
 
-		self.showInput();
+		self.inputState();
 		if( !silent ) self.updateOriginalInput();
 		self.trigger('clear');
 	}
@@ -2409,7 +2435,7 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 			self.removeItem(rm_items.pop());
 		}
 
-		self.showInput();
+		self.inputState();
 		self.positionDropdown();
 		self.refreshOptions(false);
 
@@ -2524,15 +2550,21 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	 * items are being asynchronously created.
 	 */
 	lock() {
-		this.isLocked = true;
-		this.refreshState();
+		this.setLocked(true);
 	}
 
 	/**
 	 * Re-enables user input on the control.
 	 */
 	unlock() {
-		this.isLocked = false;
+		this.setLocked(false);
+	}
+
+	/**
+	 * Disable or enable user input on the control
+	 */
+	setLocked( lock:boolean = this.isReadOnly || this.isDisabled ){
+		this.isLocked = lock;
 		this.refreshState();
 	}
 
@@ -2541,13 +2573,8 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	 * While disabled, it cannot receive focus.
 	 */
 	disable() {
-		var self = this;
-		self.input.disabled				= true;
-		self.control_input.disabled		= true;
-		self.focus_node.tabIndex		= -1;
-		self.isDisabled					= true;
+		this.setDisabled(true);
 		this.close();
-		self.lock();
 	}
 
 	/**
@@ -2555,12 +2582,22 @@ export default class TomSelect extends MicroPlugin(MicroEvent){
 	 * to focus and user input.
 	 */
 	enable() {
-		var self = this;
-		self.input.disabled				= false;
-		self.control_input.disabled		= false;
-		self.focus_node.tabIndex		= self.tabIndex;
-		self.isDisabled					= false;
-		self.unlock();
+		this.setDisabled(false);
+	}
+
+	setDisabled(disabled:boolean){
+		this.focus_node.tabIndex		= disabled ? -1 : this.tabIndex;
+		this.isDisabled					= disabled;
+		this.input.disabled				= disabled;
+		this.control_input.disabled		= disabled;
+		this.setLocked();
+	}
+
+	setReadOnly(isReadOnly:boolean){
+		this.isReadOnly					= isReadOnly;
+		this.input.readOnly				= isReadOnly;
+		this.control_input.readOnly		= isReadOnly;
+		this.setLocked();
 	}
 
 	/**
